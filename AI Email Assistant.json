@@ -1,0 +1,375 @@
+{
+  "name": "AI Email Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "in:inbox -category:promotions -category:social -label:AI-Processed",
+          "readStatus": "both"
+        },
+        "options": {}
+      },
+      "id": "1eb57f23-9e02-48f8-b30a-b13890b75ca2",
+      "name": "New Email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        112
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "tXhC6xuD2ZIGEYZx",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=From: {{ $json.from.text }}\nSubject: {{ $json.subject }}\nDate: {{ $json.date }}\n\nBody:\n{{ ($json.text || ($json.html || \"\").removeTags()).trim().slice(0, 8000) }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are the email assistant for user. For each email:\n1. Summarize it in 2-3 sentences.\n2. Categorize it as \"important\" or \"normal\". Important means it needs user's attention: college notices, assignment or exam deadlines, internship opportunities, job offers or recruiter messages, and urgent personal messages. Newsletters, marketing, automated notifications and general announcements are \"normal\".\n3. Set priority: \"high\" for deadlines within a week, offers that need a response, or urgent personal matters; \"medium\" for other important items; \"low\" for normal emails.\n4. Decide needs_reply: true only when a real person wrote to user and expects a written answer (a question, a request, an offer or invitation to respond, a personal message). Set it to false for newsletters, marketing, automated or no-reply senders, receipts, security alerts, and announcements that need no answer.\n5. If needs_reply is true, write a concise, polite suggested reply in user's voice, signed \"user\". If needs_reply is false, set suggested_reply to an empty string."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "2fe45ad8-1ae5-4c3d-81aa-3628dde1aa47",
+      "name": "Analyze Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        224,
+        112
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-haiku-5-5",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {
+          "maxTokensToSample": 2048,
+          "thinkingMode": "disabled"
+        }
+      },
+      "id": "3435a742-b375-4430-938f-38c06f2d27ea",
+      "name": "Claude Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        240,
+        336
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"2-3 sentence summary of the email\"},\"category\":{\"type\":\"string\",\"enum\":[\"important\",\"normal\"]},\"priority\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\"]},\"reason\":{\"type\":\"string\",\"description\":\"Short reason for the category and priority\"},\"needs_reply\":{\"type\":\"boolean\",\"description\":\"true only if a real person expects a written answer from user\"},\"suggested_reply\":{\"type\":\"string\",\"description\":\"Plain-text reply body, ready to send; empty string if needs_reply is false\"}},\"required\":[\"summary\",\"category\",\"priority\",\"reason\",\"needs_reply\",\"suggested_reply\"]}",
+        "autoFix": true
+      },
+      "id": "fe0ae33a-81c8-4217-8612-130d6f17754e",
+      "name": "Analysis Format",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        368,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.output.category }}",
+              "rightValue": "important",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d2c00f83-29f3-441c-bc2c-f721ff4da479",
+      "name": "Is Important?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('New Email').item.json.id }}",
+        "labelIds": [
+          "IMPORTANT"
+        ]
+      },
+      "id": "d25f97be-7a71-40d0-8bc7-dd9dd9295d7a",
+      "name": "Label as Important",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        32
+      ],
+      "webhookId": "94e5176e-a085-415a-963e-8c027e13ded3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "tXhC6xuD2ZIGEYZx",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Analyze Email').item.json.output.needs_reply }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "64c33485-cc71-48c9-bd65-97a9c22327a0",
+      "name": "Needs Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Re: {{ $('New Email').item.json.subject }}",
+        "message": "={{ $('Analyze Email').item.json.output.suggested_reply }}",
+        "options": {
+          "threadId": "={{ $('New Email').item.json.threadId }}",
+          "sendTo": "={{ $('New Email').item.json.from.value[0].address }}"
+        }
+      },
+      "id": "b135725f-9df8-4107-b899-6c7018d67a36",
+      "name": "Save Reply Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        112
+      ],
+      "webhookId": "82c9dbeb-4e9b-4afb-be46-24d4d5313855",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "tXhC6xuD2ZIGEYZx",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('New Email').item.json.id }}",
+        "labelIds": [
+          "Label_2805988057278443677"
+        ]
+      },
+      "id": "1fa59d4e-d1a4-46af-9837-0fb13f4bfac1",
+      "name": "Mark as Processed",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        112
+      ],
+      "webhookId": "8b65b6b2-3d5c-4e79-ba21-f6a8c3645929",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "tXhC6xuD2ZIGEYZx",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New Email": {
+      "main": [
+        [
+          {
+            "node": "Analyze Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Email": {
+      "main": [
+        [
+          {
+            "node": "Is Important?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyze Email",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Analysis Format",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis Format": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Analyze Email",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Important?": {
+      "main": [
+        [
+          {
+            "node": "Label as Important",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label as Important": {
+      "main": [
+        [
+          {
+            "node": "Needs Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Reply?": {
+      "main": [
+        [
+          {
+            "node": "Save Reply Draft",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Needs Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Reply Draft": {
+      "main": [
+        [
+          {
+            "node": "Mark as Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "versionId": "850d5e0c-5e80-4897-ae1b-77b2b61d1ab0",
+  "meta": {
+    "instanceId": "3a345dd1f2fcd7e8acf15a06c3053609623c7299c44adaab2ed31bebaa931a1d"
+  },
+  "nodeGroups": [],
+  "id": "Q4UjDoh6j9o41L16",
+  "tags": []
+}
