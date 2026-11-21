@@ -1,4 +1,4 @@
-# n8n-ai-email-assistant
+
 # AI Email Assistant for Gmail (n8n)
 
 An n8n workflow that reads new Gmail emails, summarizes them, marks important ones,
