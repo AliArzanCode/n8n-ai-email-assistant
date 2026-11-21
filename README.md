@@ -5,7 +5,7 @@ An n8n workflow that reads new Gmail emails, summarizes them, marks important on
 and saves a suggested reply as a draft, only when the email actually needs a reply.
 Nothing is ever sent automatically.
 
-![Workflow](screenshot.png)
+![Workflow](image.png)
 
 ## What it does
 1. Checks Gmail every minute for new emails (skips Promotions and Social)
